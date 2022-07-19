@@ -311,6 +311,102 @@ read_isis <- function(filename, progress = interactive()) {
 }
 
 
+# This is the same as read_isis(), but for the TITLE (journals) database.
+# Data dictionary in: https://wiki.bireme.org/pt/index.php/Campos_da_base_Title
+#
+read_isis_title <- function(filename, progress = interactive()) {
+
+  file_size <- file.size(filename)
+
+  if (file_size > 2^30) {
+    warning("Large file size, consider rewriting to read in chunks.",
+            immediate. = TRUE)
+  }
+
+  journal_colnames <- c(
+    status = "050",
+    title = "100",
+    title_abbrev = "150",
+    country_code = "310",
+    level = "330",
+    script = "340",
+    issn = "400"
+  )
+  # Names here are subfield tags
+  indexing_colnames <- c(
+    "_" = "source",
+    "a" = "initial_volume",
+    "b" = "initial_issue",
+    "c" = "initial_year",
+    "d" = "final_volume",
+    "e" = "final_issue",
+    "f" = "final_year"
+  )
+
+  # Actually each record is a hair above 1 kB, but let's be conservative
+  estimated_records <- ceiling(file_size / 100)
+  journals <- indexing <- subjects <-
+    vector("list", estimated_records)
+
+  current_record <- 1
+
+  d <- readLines(filename) |>
+    stringi::stri_encode(from = "cp850", to = "UTF-8")
+
+  current_line <- 1
+  if (progress) pb <- txtProgressBar(max = length(d), style = 3)
+
+  while(current_line <= length(d)) {
+
+    out <- read_record(d, current_line)
+
+    journals[[current_record]] <- matrix(out[journal_colnames], nrow = 1)
+
+    if (any(names(out) %in% "450")) {
+      indexing[[current_record]] <- cbind(
+        issn = journals[[current_record]][, names(journal_colnames) == "issn"],
+        out[names(out) %in% "450"] |>
+          lapply(split_subfields, names(indexing_colnames)) |>
+          do.call(what = "rbind")
+      )
+    }
+    if (any(names(out) %in% "440")) {
+      subjects[[current_record]] <- cbind(
+        issn = journals[[current_record]][, names(journal_colnames) == "issn"],
+        decs  = out[names(out) %in% "440"]
+      )
+    }
+
+    current_record <- current_record + 1
+    current_line <- current_line + attr(out, "total_lines")
+    if (progress) setTxtProgressBar(pb, value = current_line)
+  }
+
+  journals <- do.call("rbind", journals)
+  colnames(journals) <- names(journal_colnames)
+
+  indexing <- do.call("rbind", indexing)
+  # if the first record doesn't have some subfield, the whole combined
+  # matrix would end up without the subfield column name.
+  colnames(indexing) <- c("issn", indexing_colnames)
+  rownames(indexing) <- NULL
+
+  subjects <- do.call("rbind", subjects)
+  # A dozen journals don't have an ISSN. If any of them is the first one,
+  # the column would go unnamed unlest we re-name it.
+  colnames(subjects) <- c("issn", "decs")
+  rownames(subjects) <- NULL
+
+  if (progress) close(pb)
+
+  list(
+    journals = journals,
+    indexing = indexing,
+    subjects = subjects
+  )
+}
+
+
 # See https://wiki.bireme.org/pt/img_auth.php/5/5f/2709BR.pdf
 read_record <- function(d, current_line) {
   LINE_LENGTH <- 80
@@ -403,7 +499,6 @@ read_record <- function(d, current_line) {
 
   fields
 }
-
 
 split_subfields <- function(x, tags) {
   caret_pos <- gregexpr("^", x, fixed = TRUE)[[1]]

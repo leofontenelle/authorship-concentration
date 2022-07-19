@@ -595,3 +595,9 @@ local({
 
 unlink(tmp_filename)
 rm(tmp_filename)
+
+# read_isis_title() ####
+
+# We don't have good records to test this function, because the known
+# documentation only provides examples for individual fields. Tests
+# will be added if / when bugs are found.
