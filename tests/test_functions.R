@@ -390,6 +390,9 @@ local({
         identical(author_field_results[[name]])
     )
   }
+  # The TITLE database has
+  stopifnot(split_subfields("SCOPUS", names(author_colnames))[["_"]] ==
+             "SCOPUS")
 })
 
 

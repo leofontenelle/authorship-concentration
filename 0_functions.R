@@ -502,6 +502,10 @@ read_record <- function(d, current_line) {
 
 split_subfields <- function(x, tags) {
   caret_pos <- gregexpr("^", x, fixed = TRUE)[[1]]
+  if (length(caret_pos) == 1 && caret_pos == -1) return(
+    # There's no "^" in the string
+    setNames(c(x, rep(NA_character_, length(tags) - 1)), tags)
+  )
   # This assumes the undocumented rule that an untagged subfield
   # will be at the beginning of the field.
   actual_tags <- c("_", substring(x, caret_pos + 1, caret_pos + 1))
