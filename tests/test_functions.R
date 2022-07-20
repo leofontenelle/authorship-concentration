@@ -282,6 +282,26 @@ local({
 })
 
 
+# normalize_jdescr() ####
+
+local({
+  str <- rbind(
+    c(test = "Sociologia", answer = "Sociologia"),
+    # This is an unfortunate behavior of stringi::stri_trans_totitle()
+    c("T\u00e9cnicas de Laborat\u00f3rio Cl\u00ednico",
+      "T\u00e9cnicas De Laborat\u00f3rio Cl\u00ednico"),
+    # this works with stringi::stri_trans_totitle(), not with tools::totitle()
+    c("TECNOLOGIA, IND\u00daSTRIA, AGRICULTURA",
+      "Tecnologia, Ind\u00fastria, Agricultura"),
+    c("TERAPEUTICA", "Terap\u00eautica"),
+    c("Terap\u00eautica", "Terap\u00eautica"),
+    c("TRAUMATOLOGIA", "Traumatologia"),
+    # When there's no version with diacritics
+    c("VETERINARIA", "Veterinaria")
+  )
+  stopifnot(all.equal(normalize_jdescr(str[, "test"]), str[, "answer"]))
+})
+
 # split_subfields() ####
 
 # Examples A through E are from

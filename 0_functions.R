@@ -187,6 +187,24 @@ gini <- function(x) {
   2 * sum(x * seq_along(x)) / (sum(x) * (n - 1)) - (n + 1) / (n - 1)
 }
 
+# In the TITLE database, some journals have their subject headings
+# in upper case without diacritics, while others have them in
+# title case with diacritics. The upper/title case should be dealt
+# before.
+normalize_jdescr <- function(str) {
+  str <- stri_trans_totitle(str, locale = "pt_BR")
+  uniqstr <- unique(str)
+  uniqstr_ascii <- uniqstr |>
+    stri_trans_general("NFKC; Any-Latin; Latin-ASCII")
+  with_diacritics <- !stri_enc_isascii(uniqstr)
+  # When two subject headings are the same except for diacritics,
+  # make the one without diacritics equal to the other with them.
+  for (i in which(with_diacritics)) {
+    the_same <- which(uniqstr_ascii %in% uniqstr_ascii[i])
+    str[str %in% uniqstr[the_same]] <- uniqstr[i]
+  }
+  str
+}
 
 # Page 12 of https://wiki.bireme.org/pt/img_auth.php/5/5f/2709BR.pdf
 #
