@@ -1,14 +1,4 @@
 # 1_summarize.R - calculates indexes
-#
-# 1. Libraries and functions
-# 2. Read data
-# 3. Clean data
-# 4. Put it together
-# 5. Figure 1
-# 6. Drop irrelevant data
-# 7. Distinguish authorship
-# 8. Calculate indexes
-# 9. Save data
 
 # Libraries and functions ####
 
@@ -16,6 +6,61 @@ source("0_functions.R")
 
 library(data.table) |> suppressPackageStartupMessages()
 library(stringi)
+
+
+# Read journal data ####
+
+tmp <- read_isis_title("data/title_all_drleonardo.iso")
+
+indexing <- as.data.table(tmp$indexing, key = "issn") |> subset(
+  # seemingly valid ISSNs
+  grepl("^\\d{4}-\\d{3}[\\dxX]$", issn, perl = TRUE) &
+    # in LILACS
+    source == "LL" &
+    # Not removed
+    is.na(final_year)
+)
+stopifnot(!anyDuplicated(indexing$issn))
+journals <- as.data.table(tmp$journals, key = "issn")[indexing$issn] |> subset(
+  # keep journals only if the haven't been discontinued
+  status == "C"
+  ## while LILACS doesn't index journals dedicated to
+  ## scientific dissemination, there are two Colombian journals
+  ## recorded as "science dissemination" which are indexed, both
+  ## according to the TITLE database and to this web page:
+  ## https://lilacs.bvsalud.org/en/lilacs-journals/list-journals-indexed-in-lilacs/
+  #
+  # & level == "CT"
+)
+# keep journals only if the haven't been discontinued
+indexing <- indexing[journals$issn]
+subjects <- as.data.table(tmp$subjects, key = "issn")[indexing$issn]
+rm(tmp)
+
+
+# Clean journal data ####
+
+subjects[decs %in% c("SINDROIMUNE IMUN ADQUIRIDAUIRIDAUIRIDA",
+                     "S\u00eddrome de Imunodefici\u00eancia Adquirida"),
+         decs := "S\u00edndrome de Imunodefici\u00eancia Adquirida"]
+subjects[decs == "PRESTA\u252c\u00c7AO DE CUIDADOS DE SAUDE",
+         decs := "Presta\u00e7\u00e3o de Cuidados de Sa\u00fade"]
+# Some journals have subject headings in title case with diacritics,
+# while others have them win upper case without diacritics.
+subjects[, decs := normalize_jdescr(decs)]
+
+
+# Write journal data ####
+
+# sep = ";" and BOM for the sake of Brazilian users of MS Excel
+subjects |>
+  fwrite("data/journal_subjects.csv", sep = ";", bom = TRUE)
+journals |>
+  subset(select = c(issn, title, title_abbrev, country_code)) |>
+  fwrite("data/journals.csv", sep = ";", bom = TRUE)
+
+
+stop("Code below needs to be adapted")
 
 
 # Read data ####
