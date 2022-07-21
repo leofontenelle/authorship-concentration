@@ -624,3 +624,7 @@ rm(tmp_filename)
 # We don't have good records to test this function, because the known
 # documentation only provides examples for individual fields. Tests
 # will be added if / when bugs are found.
+
+# search_lilacs() ####
+
+# The function is used for its side effects
