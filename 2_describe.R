@@ -7,60 +7,23 @@ library(ggplot2)
 library(gridExtra)
 library(scales)
 
-journal_descriptors <- c(
-  "ALLERGY AND IMMUNOLOGY", "ANATOMY", "ANESTHESIOLOGY", "ANTHROPOLOGY",
-  "ANTI-BACTERIAL AGENTES", "AUDIOLOGY", "BACTERIOLOGY", "BEHAVIORAL SCIENCES",
-  "BIOCHEMISTRY", "BIOETHICS", "BIOLOGY", "BIOMEDICAL ENGINEERING",
-  "BIOPHYSICS", "BIOTECHNOLOGY", "BOTANY", "CARDIOLOGY", "CHEMISTRY",
-  "COMMUNICABLE DISEASES", "COMPLEMENTARY THERAPIES", "CRITICAL CARE",
-  "DELIVERY OF HEALTH CARE", "DENTISTRY", "DERMATOLOGY", "DIAGNOSTIC IMAGING",
-  "EDUCATION", "EMERGENCY MEDICINE", "ENDOCRINOLOGY", "ENVIRONMENTAL HEALTH",
-  "EPIDEMIOLOGY", "ETHICS", "FAMILY PRACTICE", "GASTROENTEROLOGY", "GENETICS",
-  "GERIATRICS", "GERONTOLOGY", "GYNECOLOGY", "HEALTH SERVICES", "HEMATOLOGY",
-  "HISTOLOGY", "HISTORY OF MEDICINE", "HOMEOPATHY", "HOSPITALS",
-  "INTERNAL MEDICINE", "JURISPRUDENCE", "LIBRARY SCIENCE",
-  "MEDICAL INFORMATICS", "MEDICINE", "METABOLISM", "MICROBIOLOGY",
-  "MILITARY MEDICINE", "MOLECULAR BIOLOGY", "NEOPLASMS", "NEPHROLOGY",
-  "NEUROLOGY", "NEUROSURGERY", "NUCLEAR MEDICINE", "NURSING",
-  "NUTRITIONAL SCIENCES", "OBSTETRICS", "OCCUPATIONAL MEDICINE",
-  "OPHTHALMOLOGY", "OPTOMETRY", "ORTHODONTICS", "ORTHOPEDICS",
-  "OSTEOPATHIC MEDICINE", "OTOLARYNGOLOGY", "PARASITOLOGY", "PATHOLOGY",
-  "PEDIATRICS", "PERINATOLOGY", "PHARMACOLOGY", "PHARMACY",
-  "PHYSICAL EDUCATION", "PHYSIOLOGY", "PSYCHIATRY", "PSYCHOLOGY",
-  "PSYCHOPHARMACOLOGY", "PSYCHOPHYSIOLOGY", "PUBLIC ADMINISTRATION",
-  "PUBLIC HEALTH", "PULMONARY DISEASE (SPECIALTY)", "RADIOLOGY",
-  "RADIOTHERAPY", "REPRODUCTIVE MEDICINE", "RHEUMATOLOGY", "SCIENCE",
-  "SEXUALLY TRANSMITTED DISEASES", "SOCIAL MEDICINE", "SOCIAL SCIENCES",
-  "SPEECH-LANGUAGE PATHOLOGY", "SPORTS MEDICINE", "SURGERY", "THERAPEUTICS",
-  "TOXICOLOGY", "TRAUMATOLOGY", "TROPICAL MEDICINE", "UROLOGY",
-  "VETERINARY MEDICINE", "VIROLOGY", "VITAL STATISTICS")
-journal_descriptors <- setNames(
-  # will map to these names
-  object = journal_descriptors |> tolower() |> tools::toTitleCase(),
-  # will map from these names
-  nm = journal_descriptors
-)
-# c(`ALLERGY AND IMMUNOLOGY` = "Allergy and Immunology", ANATOMY = "Anatomy",
-#   ANESTHESIOLOGY = "Anesthesiology", ANTHROPOLOGY = "Anthropology", ...)
-
-
 # Read data ####
 
 if (!dir.exists("data")) dir.create("data")
 md5sums <- c(
-  "data/journal_descriptors.csv" = "7ac81c8cb236287f66746478ecc8f0df",
-  "data/journals_in_LILACS_2021-01-10.csv" = "1991bad0fb195d77361be8445e0b5031",
-  "data/authorship_concentration.csv" = "aaf3b82df41389584c3224dfc9ce69fc",
+  "data/journal_subjects.csv" = "b9f659e1ad70d613ae660507262a6571",
+  "data/journals.csv" = "1525753c609bb8dc78bebd86ea10417e",
+  "data/authorship_concentration.csv" = "aaa600ae9134abfac7d48cf181148963",
   "data/journal_info_flat V2.csv" = "363e0931a4379656cca9642725463f55"
 )
-for (nm in head(names(md5sums), -1)) {
-  if (file.exists(nm)) next
-  message(sprintf("%s not found; dowloading.", nm))
-  source_url <- basename(nm) |>
-    sprintf(fmt = "https://zenodo.org/record/6126801/files/%s?download=1") |>
-    URLencode()
-  download.file(source_url, destfile = nm, mode = "wb")
-}
+# for (nm in head(names(md5sums), -1)) {
+#   if (file.exists(nm)) next
+#   message(sprintf("%s not found; dowloading.", nm))
+#   source_url <- basename(nm) |>
+#     sprintf(fmt = "https://zenodo.org/record/6126801/files/%s?download=1") |>
+#     URLencode()
+#   download.file(source_url, destfile = nm, mode = "wb")
+# }
 for (nm in tail(names(md5sums), 1)) {
   if (file.exists(nm)) next
   message(sprintf("%s not found; dowloading.", nm))
@@ -75,18 +38,16 @@ for (nm in names(md5sums)) {
       nm))
 }
 
-journals <- "data/journals_in_LILACS_2021-01-10.csv" |>
-  fread(encoding = "UTF-8", key = "issn")
-jdescr <- "data/journal_descriptors.csv" |>
-  fread( encoding = "UTF-8", key = "issn")
-jdescr[, journal_descriptor := journal_descriptors[journal_descriptor]]
-authorship_concentration <- "data/authorship_concentration.csv" |>
-  fread(encoding = "UTF-8", key = "issn")
+journals <- fread("data/journals.csv", key = "issn")
+subjects <- fread("data/journal_subjects.csv", key = "issn")
+authorship_concentration <- fread("data/authorship_concentration.csv",
+                                  key = "issn")
 journals <- journals[authorship_concentration]
-rm(authorship_concentration, journal_descriptors)
+rm(authorship_concentration)
 
 medline <- fread("data/journal_info_flat V2.csv") |>
-  subset(DP == "All" & On == "All" & `article number with authors` >= 50 &
+  subset(DP == "All" & On == "All" &
+           `article number with authors` >= 50 &
            !is.na(PPMP) & !is.na(gini))
 medline[, weight := calculate_weights(
   `article number with authors`,
@@ -268,39 +229,42 @@ predict_concentration <- function(n_signed, PPMP, gini, min.obs = 20) {
 predictions_by_country <- journals[
   gini > 0,
   predict_concentration(n_signed, PPMP, gini),
-  keyby = "country"
+  keyby = "country_code"
 ]
-journal_by_descriptor <-
-  journals[jdescr[, issn, by = .(descriptor = journal_descriptor)],
-           .(issn, n_signed, n_MPA, PPMP, gini, descriptor),
-           on = "issn"][!is.na(n_signed)] |>
-  setorder(descriptor)
-predictions_by_descriptor <- journal_by_descriptor[
+journal_by_decs <- journals[
+  subjects[, issn, by = decs],
+  .(issn, n_signed, n_MPA, PPMP, gini, decs),
+  on = "issn"
+][
+  !is.na(n_signed) & gini > 0
+] |>
+  setkey(decs)
+predictions_by_decs <- journal_by_decs[
   , predict_concentration(n_signed, PPMP, gini),
-  keyby = "descriptor"
+  keyby = "decs"
 ]
 
 fig2a <- fig1a +
   geom_point(shape = "bullet") + # remove transparency for better contrast
-  geom_line(aes(n_signed, PPMP, group = country),
+  geom_line(aes(n_signed, PPMP, group = country_code),
             predictions_by_country,
             colour = palette.colors()[3])
 fig2b <- fig1b +
   geom_point(shape = "bullet") + # remove transparency for better contrast
-  geom_line(aes(n_signed, gini, group = country),
+  geom_line(aes(n_signed, gini, group = country_code),
             predictions_by_country,
             colour = palette.colors()[3])
 fig2 <- arrangeGrob(fig2a, fig2b, nrow = 1)
 
 fig3a <- fig1a +
   geom_point(shape = "bullet") + # remove transparency for better contrast
-  geom_line(aes(n_signed, PPMP, group = descriptor),
-            predictions_by_descriptor,
+  geom_line(aes(n_signed, PPMP, group = decs),
+            predictions_by_decs,
             colour = palette.colors()[3])
 fig3b <- fig1b +
   geom_point(shape = "bullet") + # remove transparency for better contrast
-  geom_line(aes(n_signed, gini, group = descriptor),
-            predictions_by_descriptor,
+  geom_line(aes(n_signed, gini, group = decs),
+            predictions_by_decs,
             colour = palette.colors()[3])
 fig3 <- arrangeGrob(fig3a, fig3b, nrow = 1)
 
@@ -312,8 +276,8 @@ ggsave("Fig1.png", fig1, width = 16.5, height = 5.5, units = "cm")
 ggsave("Fig2.png", fig2, width = 11, height = 5.5, units = "cm")
 ggsave("Fig3.png", fig3, width = 11, height = 5.5, units = "cm")
 
-print(sprintf("Countries (out of %d):", uniqueN(journals$country)))
-print(journals[, .(N = uniqueN(issn)), keyby = country][N >= 20])
+print(sprintf("Countries (out of %d):", uniqueN(journals$country_code)))
+print(journals[, .(N = uniqueN(issn)), keyby = country_code][N >= 20])
 
-print(sprintf("Descriptors (out of %d):", uniqueN(jdescr$journal_descriptor)))
-print(jdescr[, .(N = uniqueN(issn)), keyby = journal_descriptor][N >= 20])
+print(sprintf("Descriptors (out of %d):", uniqueN(journal_by_decs$decs)))
+print(journal_by_decs[, .N, keyby = decs][N >= 20])
