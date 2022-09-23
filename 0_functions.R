@@ -1,8 +1,6 @@
 # {stringi} saves us from inconsistencies between Windows and UNIX
 # systems (Linux, macOS) on character encoding and transliteration
 
-# {httr} fetches data from LILACS
-
 # The output can be used to reweight the source vector so that its
 # distribution will be similar to that of the the target vector.
 # The log argument makes the weights be calculated from the kernel
@@ -538,58 +536,6 @@ split_subfields <- function(x, tags) {
     # there can be only one of each subfield.
     setNames(actual_tags)
   out[tags]
-}
-
-
-# This function retrieves data from LILACS about articles published in a
-# particular journal in a particular set of years.
-#
-# Parameters:
-#   ta        (character) abbreviated journal title
-#   pd        an integer, or vector of integers, for the publication year(s)
-#   filename  file name with path relative to the working directory,
-#             in example, "data/my_file.iso"
-#
-# Returns: NULL (invisibly)
-#
-search_lilacs <- function(ta, pd, filename) {
-  stopifnot(is.character(ta), is.integer(pd), !missing(filename))
-
-  # Before downloading data, let's see if we can write it
-  targetdir <- dirname(filename)
-  if (!dir.exists(targetdir)) {
-    stopifnot(!file.exists(targetdir))
-    dir.create(targetdir)
-  } else {
-    # Zero means we can write there
-    stopifnot(file.access(targetdir, 2) == 0)
-  }
-
-  # > paste(2015:2019, collapse = " or ")
-  # [1] "2015 or 2016 or 2017 or 2018 or 2019"
-  pd <- paste(pd, collapse = " or ")
-
-  url <- "http://bases.bireme.br/cgi-bin/wxislind.exe/iah/online/"
-  res <- httr::POST(url = url, body = list(
-    IsisScript = "iah/iah.xis",
-    base = "LILACS",
-    lang = "i",
-    form = "A",
-    conectSearch = "init",
-    conectSearch = "and",
-    conectSearch = "and",
-    exprSearch = ta,
-    exprSearch = pd,
-    indexSearch = "^nTa^iJournal^eRevista^pRevista^xTA ^yTA^uTA ^mTA_^tkwic",
-    indexSearch = "^nPd^iCountry, year publication^ePaís, año de publicación^pPaís, ano de publicação^xPD ^yPD^uPD ^mPD_",
-    indexSearch = "^nTw^iWords^ePalabras^pPalavras^d*^xTW ^yTW^mTW_",
-    nextAction = "list",
-    listOption = "list_all",
-    sendOption = "export-iso"
-  ))
-  httr::stop_for_status(res)
-  stopifnot(r$headers$"content-type" == "bireme/application")
-  writeBin(content(r, "raw"), filename)
 }
 
 
