@@ -93,30 +93,8 @@ local({
     "\u00cd\u0081ngel",
     "\u{009f}lvarez",
 
-    # vowel + tilde
-    "Gusma\u00cc\u0083o",
-    "Simo\u00cc\u0083es",
-
-    # vowel + circumflex
-    "Vena\u00cc\u0082ncio",
-    "Corre\u00cc\u0082a",
-    "So\u00cc\u0082nia",
-
-    # vowel + umlaut
-    "Bu\u00cc\u0088ndchen",
-
     # c-cedilha
     "Gonc\u00cc\u00a7alves",
-
-    # n-tilde
-    "Meon\u00cc\u0083o",
-
-    # consonant + comma
-    "Arma\u00c8\u0099u",
-    "Covan\u00c8\u009bev",
-
-    # consonant + caron
-    "Red\u{009e}epagi\u{0107}",
 
     # Miscellaneous
     "Jo\u00c3\u00a3o",
@@ -132,10 +110,7 @@ local({
     "Miguel\u25cb",
     "O\u0092Farrill",
     "Pichardo-\u0412\u0430\u04bb\u0435na",
-
-    # Control characters
-    "\u0082",
-    "\u0086"
+    "\u00c7eti\u00cc\u2021nkaya, Asya"
   )
   to <- c(
     # Apostrophe
@@ -155,30 +130,8 @@ local({
     "\u{00c1}ngel",
     "\u{00c1}lvarez",
 
-    # vowel + tilde
-    "Gusm\u{00e3}o",
-    "Sim\u{00f5}es",
-
-    # vowel + circumflex
-    "Ven\u{00e2}ncio",
-    "Corr\u{00ea}a",
-    "S\u{00f4}nia",
-
-    # vowel + umlaut
-    "B\u{00fc}ndchen",
-
     # c-cedilha
     "Gon\u00e7alves",
-
-    # n-tilda
-    "Meo\u{00f1}o",
-
-    # consonant + comma
-    "Arma\u{0219}u",
-    "Covan\u{021b}ev",
-
-    # consonant + caron
-    "Red\u{017e}epagi\u{0107}",
 
     # Miscellaneous
     "Jo\u{00e3}o",
@@ -194,10 +147,7 @@ local({
     "Miguelo",
     "O'Farrill",
     "Pichardo-Bahena",
-
-    # Control characters
-    "",
-    ""
+    "\u00c7eti\u0307nkaya, Asya"
   )
   stopifnot(fix_encoding(from) == to)
   # cbind(fix_encoding(from), to)[fix_encoding(from) != to, ]
@@ -508,7 +458,7 @@ local({
     "incipio…para entender la actualidad)^ies#Education in Chile (From the beginning ",
     "... to understand the present)#^l29^f24#Rev. pediatr. electrón#12#4#0718-0918#es",
     "#Dic. 2015#20151200#CL#Artigo Histórico#4#História do Século XV#História do Sécu",
-    "lo XVI#História do Século XVII#^dEducaçăo^s/história#^dUniversidades^s/história#",
+    "lo XVI#História do Século XVII#^dEducação^s/história#^dUniversidades^s/história#",
     "^dChile#2021-04-07T15:28:10#rodrigoacuna#2021-12-20T18:37:14#p#PEDIATRIA#CHILE#.",
     ". LATIN AMERICA AND THE CARIBBEAN#.  ALL COUNTRIES#CHILE#.. PAISES DE AMERICA LA",
     "TINA#.  TODOS LOS PAISES#CHILE#.. PAISES DA AMERICA LATINA#.  TODOS OS PAISES#Ch",
@@ -517,10 +467,10 @@ local({
     "N_MEDICA.pdf^qpdf^ies^gTrue##"
   ))
   unlist(record_samples) |>
-    stringi::stri_write_lines(tmp_filename, "Windows-1252", "\r\n")
+    stringi::stri_write_lines(tmp_filename, "cp1252", "\r\n")
 
   d <- readLines(tmp_filename, ) |>
-    stringi::stri_encode(from = "ISO-8859-1", to = "UTF-8")
+    stringi::stri_encode(from = "cp1252", to = "UTF-8")
 
   record_first <- read_record(d, current_line = 1)
   attr(record_first,"total_lines") <- NULL
@@ -583,17 +533,11 @@ local({
     record_four[names(record_four) %in% "030"] ,
     c("030" = "Rev. pediatr. electrón")
   ))
-
-  # # Although abstracts (field 083) are not exported by read_record(),
-  # # this is the reason this sample record was included in the unit
-  # # test: windows-1252 character encoding.
-  # #
-  # stopifnot(
-  #   # "incipio\u2026para entender la actualidad)^ies#Education in Chile (From the beginning "
-  #   d[1 + length(unlist(record_samples[1:3])) + 10] |>
-  #     stringi::stri_detect_fixed("\u2026")
-  # )
-
+  stopifnot(
+    # "incipio\u2026para entender la actualidad)^ies#Education in Chile (From the beginning "
+    d[1 + length(unlist(record_samples[1:3])) + 10] |>
+      stringi::stri_detect_fixed("\u2026")
+  )
 })
 
 

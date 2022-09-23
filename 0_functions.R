@@ -63,26 +63,8 @@ fix_encoding <- function(name) {
     stringi::stri_replace_all_fixed("u\u00cc\u0081", "\u00fa") |>
     stringi::stri_replace_all_fixed("\u00cd\u0081", "\u00c1") |>
     stringi::stri_replace_all_fixed("\u{009f}lvarez", "\u{00c1}lvarez") |>
-    # vowel + tilde
-    stringi::stri_replace_all_fixed("a\u00cc\u0083", "\u00e3") |>
-    stringi::stri_replace_all_fixed("o\u00cc\u0083", "\u00f5") |>
-    # vowel + circumflex
-    stringi::stri_replace_all_fixed("a\u00cc\u0082", "\u00e2") |>
-    stringi::stri_replace_all_fixed("e\u00cc\u0082", "\u00ea") |>
-    # stringi::stri_replace_all_fixed("i\u00cc\u0082", "\u00ee") |> # not in data
-    stringi::stri_replace_all_fixed("o\u00cc\u0082", "\u00f4") |>
-    # stringi::stri_replace_all_fixed("u\u00cc\u0082", "\u00fb") |> # not in data
-    # vowel + umlaut
-    stringi::stri_replace_all_fixed("u\u00cc\u0088", "\u00fc") |>
     # c + cedilha
     stringi::stri_replace_all_fixed("c\u00cc\u00a7", "\u00e7") |>
-    # n-tilde
-    stringi::stri_replace_all_fixed("n\u00cc\u0083", "\u00f1") |>
-    # consonant + comma
-    stringi::stri_replace_all_fixed("\u00c8\u0099", "\u0219") |>
-    stringi::stri_replace_all_fixed("\u00c8\u009b", "\u021b") |>
-    # consonant + caron
-    stringi::stri_replace_all_fixed("\u009e", "\u017e") |>
     # Miscellaneous
     stringi::stri_replace_all_fixed("Jo\u00c3\u00a3o", "Jo\u{00e3}o") |>
     stringi::stri_replace_all_fixed("Ru\u00ef\u00ac\u0081no", "Rufino") |>
@@ -97,9 +79,7 @@ fix_encoding <- function(name) {
     stringi::stri_replace_all_fixed("Miguel\u25cb", "Miguelo") |>
     stringi::stri_replace_all_fixed("O\u0092Farrill", "O'Farrill") |>
     stringi::stri_replace_all_fixed("\u0412\u0430\u04bb\u0435na", "Bahena") |>
-    # Control characters
-    stringi::stri_replace_all_fixed("\u0082", "") |>
-    stringi::stri_replace_all_fixed("\u0086", "")
+    stringi::stri_replace_all_fixed("\u00c7eti\u00cc\u2021nkaya", "\u00c7eti\u0307nkaya")
 }
 
 
@@ -192,11 +172,11 @@ gini <- function(x) {
 # title case with diacritics. The upper/title case should be dealt
 # before.
 normalize_jdescr <- function(str) {
-  str <- stri_trans_totitle(str, locale = "pt_BR")
+  str <- stringi::stri_trans_totitle(str, locale = "pt_BR")
   uniqstr <- unique(str)
   uniqstr_ascii <- uniqstr |>
-    stri_trans_general("NFKC; Any-Latin; Latin-ASCII")
-  with_diacritics <- !stri_enc_isascii(uniqstr)
+    stringi::stri_trans_general("NFKC; Any-Latin; Latin-ASCII")
+  with_diacritics <- !stringi::stri_enc_isascii(uniqstr)
   # When two subject headings are the same except for diacritics,
   # make the one without diacritics equal to the other with them.
   for (i in which(with_diacritics)) {
@@ -226,17 +206,22 @@ read_isis <- function(filename, progress = interactive()) {
 
   file_size <- file.size(filename)
 
-  # In mebibytes
-  available_memory <- ifelse(
-    !is.infinite(memory.limit()), # Does the OS report it to R?
-    memory.limit() - memory.size(),
-    2 * 2^10
-  )
-
-  if (file_size > (0.5 * available_memory * 2^20)) {
+  if (file_size > 2^30) {
     warning("Large file size, consider rewriting to read in chunks.",
             immediate. = TRUE)
   }
+
+  article_colnames <- c(
+    lilacs_id = "002",
+    lit_type = "005",
+    treat_level = "006",
+    journal_title = "030",
+    issn = "035",
+    pub_date = "065",
+    pub_country = "067",
+    n_references = "072",
+    doi = "724"
+  )
 
   # Names here are subfield tags
   author_colnames <- c(
@@ -257,12 +242,9 @@ read_isis <- function(filename, progress = interactive()) {
     vector("list", length = articles_estimate)
   current_record <- 1
 
-  # We are not using stri_read_lines(from = "ISO-8859-1") because
-  # it fails with invalid chars even if this encoding corresponds
-  # better than windows-1252 to what is displayed online.
-  # For abstracts windows-1252 is perhaps a better option.
   d <- readLines(filename) |>
-    stringi::stri_encode(from = "ISO-8859-1", to = "UTF-8")
+    # Better results than cp850 for this dataset
+    stringi::stri_encode(from = "cp1252", to = "UTF-8")
 
   current_line <- 1
   if (progress) pb <- txtProgressBar(max = length(d), style = 3)
@@ -271,19 +253,9 @@ read_isis <- function(filename, progress = interactive()) {
 
     out <- read_record(d, current_line)
 
-    articles[[current_record]] <- cbind(
-      lilacs_id     = out["002"] |> unname(),
-      lit_type      = out["005"] |> unname(),
-      treat_level   = out["006"] |> unname(),
-      journal_title = out[names(out) %in% "030"] |> unname(),
-      issn          = out["035"] |> unname(),
-      pub_date      = out["065"] |> unname(),
-      pub_country   = out["067"] |> unname(),
-      n_references  = out["072"] |> unname(),
-      doi           = out["724"] |> unname()
-    )
-    # Field 030 is recurrent, so the matrix might have multiple rows.
-    stopifnot(nrow(articles[[current_record]]) == 1)
+    # Field 030 is recurrent, but actually we expect only one value
+    stopifnot(length(out[names(out) %in% "030"]) == 1)
+    articles[[current_record]] <- matrix(out[article_colnames], nrow = 1)
 
     if (any(names(out) %in% "010")) {
       authorships[[current_record]] <- cbind(
@@ -306,6 +278,7 @@ read_isis <- function(filename, progress = interactive()) {
   }
 
   articles <- do.call("rbind", articles)
+  colnames(articles) <- names(article_colnames)
   articles[articles == ""] <- NA_character_
 
   authorships <- do.call("rbind", authorships)

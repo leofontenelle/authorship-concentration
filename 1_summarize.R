@@ -40,6 +40,8 @@ rm(tmp)
 
 # Clean journal data ####
 
+stopifnot(identical(journals$issn, fix_issn(journals$issn)))
+stopifnot(identical(subjects$issn, fix_issn(subjects$issn)))
 subjects[decs %in% c("SINDROIMUNE IMUN ADQUIRIDAUIRIDAUIRIDA",
                      "S\u00eddrome de Imunodefici\u00eancia Adquirida"),
          decs := "S\u00edndrome de Imunodefici\u00eancia Adquirida"]
@@ -60,19 +62,7 @@ journals |>
   fwrite("data/journals.csv", sep = ";", bom = TRUE)
 
 
-stop("Code below needs to be adapted")
-
-
 # Read data ####
-
-journals <- fread(
-  file = "data/journals_in_LILACS_2021-01-10.csv",
-  encoding = "UTF-8", key = "issn")
-jdescr <- fread(
-  file = "data/journal_descriptors.csv",
-  encoding = "UTF-8", key = "issn")
-stopifnot(identical(journals$issn, fix_issn(journals$issn)))
-stopifnot(identical(jdescr$issn, fix_issn(jdescr$issn)))
 
 years <- as.character(2015:2019)
 articles <- authorships <- pubtypes <-
@@ -163,11 +153,11 @@ journals[, n_signed := fcoalesce(
   articles[, .(N = sum(signed)), keyby = issn][issn, N],
   0L
 )]
-journals[, with_jdescr := issn %in% jdescr[, issn]]
-stopifnot(all(!is.na(jdescr$issn)))
-stopifnot(all(!is.na(jdescr$journal_descriptor)))
-jdescr[, in_articles := issn %in% articles[, issn]]
-jdescr[, in_lilacs := issn %in% journals[, issn]]
+journals[, with_jdescr := issn %in% subjects[, issn]]
+stopifnot(all(!is.na(subjects$issn)))
+stopifnot(all(!is.na(subjects$decs)))
+subjects[, in_articles := issn %in% articles[, issn]]
+subjects[, in_lilacs := issn %in% journals[, issn]]
 
 
 # Figure 1 ####
@@ -193,7 +183,7 @@ articles <- articles[issn %in% journals$issn & signed]
 authorships <- authorships[lilacs_id %in% articles[, lilacs_id] &
                              (!is.na(name) | !is.na(orcid_id))]
 pubtypes <- pubtypes[lilacs_id %in% articles[, lilacs_id]] # See at the end
-jdescr <- jdescr[issn %in% journals$issn]
+subjects <- subjects[issn %in% journals$issn]
 stopifnot(all(journals$issn %in% authorships$issn))
 
 
@@ -228,7 +218,7 @@ authorships[, author_id := fcoalesce(author_id, X[ascii_name, author_id])]
 #     duplicate ORCID ids, not different persons; and
 # (2) the probability of both publishing in the same journal is tiny; and
 # (3) this study is based on another that compared names, period.
-# So, were are simply treat these names as pertaining to the same person.
+# So, we will simply treat these names as pertaining to the same person.
 X <- authorships[
   !is.na(author_id) & !is.na(ascii_name),
   .(n = uniqueN(author_id)),
@@ -258,6 +248,7 @@ X <- authorships[
 journals[, abbreviated_forename_prop := X[issn, abbreviated_forename_prop]]
 rm(X)
 
+
 # Calculate indexes ####
 
 articles_per_author <- authorships[
@@ -284,8 +275,10 @@ journals[, gini := articles_per_author[issn, gini(N)], by = issn]
 journals[, .(issn, n_articles, n_signed,
              abbreviated_forename_prop, abbreviated_forename_MPA,
              n_ex_aequo_MPA, n_MPA, PPMP, gini)] |>
-  fwrite("data/authorship_concentration.csv", bom = TRUE)
+  fwrite("data/authorship_concentration.csv", sep = ";", bom = TRUE)
 
+
+# Output for writting the manuscript ####
 print(cbind(n_articles, n_journals))
 print(c(
   "ORCID id n" = format(sum(!is.na(authorships$orcid_id))),
