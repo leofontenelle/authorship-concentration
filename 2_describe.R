@@ -16,14 +16,14 @@ md5sums <- c(
   "data/authorship_concentration.csv" = "aaa600ae9134abfac7d48cf181148963",
   "data/journal_info_flat V2.csv" = "363e0931a4379656cca9642725463f55"
 )
-# for (nm in head(names(md5sums), -1)) {
-#   if (file.exists(nm)) next
-#   message(sprintf("%s not found; dowloading.", nm))
-#   source_url <- basename(nm) |>
-#     sprintf(fmt = "https://zenodo.org/record/6126801/files/%s?download=1") |>
-#     URLencode()
-#   download.file(source_url, destfile = nm, mode = "wb")
-# }
+for (nm in head(names(md5sums), -1)) {
+ if (file.exists(nm)) next
+ message(sprintf("%s not found; dowloading.", nm))
+ source_url <- basename(nm) |>
+   sprintf(fmt = "https://zenodo.org/record/7120989/files/%s?download=1") |>
+   URLencode()
+ download.file(source_url, destfile = nm, mode = "wb")
+}
 for (nm in tail(names(md5sums), 1)) {
   if (file.exists(nm)) next
   message(sprintf("%s not found; dowloading.", nm))
